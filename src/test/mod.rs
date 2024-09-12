@@ -1,3 +1,11 @@
+use std::{
+    fs, io,
+    path::PathBuf,
+    process::{Command, Output, Stdio},
+    str,
+};
+
+use clap::error::Result;
 use colored::Colorize;
 
 pub fn compare_strings_line_by_line(string1: String, string2: String) {
@@ -19,4 +27,57 @@ pub fn compare_strings_line_by_line(string1: String, string2: String) {
             )
         }
     }
+}
+
+pub fn run_test(cses: Option<String>) -> std::io::Result<()> {
+    Command::new("clang++")
+        .arg("main.cpp")
+        .arg("-o")
+        .arg("main")
+        .arg("-DONLINE_JUDGE")
+        .output()
+        .expect("failed to execute process");
+
+    match cses {
+        Some(_) => {
+            let entries = fs::read_dir("./tests")?
+                .map(|res| res.map(|e| e.path()))
+                .collect::<Result<Vec<PathBuf>, io::Error>>()?
+                .into_iter()
+                .filter(|x| match x.extension() {
+                    Some(x) => x == "in",
+                    None => false,
+                })
+                .collect::<Vec<_>>();
+
+            for elm in entries {
+                println!("{:?}", elm.to_str())
+            }
+        }
+        None => {
+            let output = test_file("input.txt");
+
+            let result = str::from_utf8(&output.stdout).unwrap().to_string();
+            let required_result = fs::read_to_string("req_output.txt")?;
+
+            compare_strings_line_by_line(result, required_result);
+        }
+    }
+
+    Ok(())
+}
+
+fn test_file(file: &str) -> Output {
+    let cat_output = Command::new("/bin/cat")
+        .arg(file)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = Command::new("./main")
+        .stdin(Stdio::from(cat_output.stdout.unwrap()))
+        .stdout(Stdio::piped())
+        .output()
+        .expect("failed to execute cmd");
+
+    output
 }
